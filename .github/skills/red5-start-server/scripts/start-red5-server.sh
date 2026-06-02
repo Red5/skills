@@ -13,38 +13,50 @@ require_tools() {
   fi
 
   if ! command -v python3 >/dev/null 2>&1; then
-    echo "Error: python3 is required to parse Docker Hub API responses." >&2
+    echo "Error: python3 is required to query Docker Hub API responses." >&2
     exit 1
   fi
 }
 
 resolve_latest_release_tag() {
-  local api_url="https://hub.docker.com/v2/repositories/${IMAGE_REPO}/tags?page_size=100&ordering=last_updated"
-  local payload
-
-  if ! payload="$(curl -fsSL "$api_url")"; then
-    echo "Error: failed to fetch tags from Docker Hub (${api_url})." >&2
-    exit 1
-  fi
-
-  printf '%s' "$payload" | python3 -c '
+  python3 - "$IMAGE_REPO" <<'PY'
 import json
 import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 
-payload = json.load(sys.stdin)
+image_repo = sys.argv[1]
+base_url = f"https://hub.docker.com/v2/repositories/{image_repo}/tags"
+params = {"page_size": 100, "ordering": "last_updated"}
+url = f"{base_url}?{urllib.parse.urlencode(params)}"
+
+all_tags = []
+
+while url:
+    req = urllib.request.Request(url, headers={"Accept": "application/json"})
+    try:
+      with urllib.request.urlopen(req, timeout=30) as response:
+          payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.URLError as exc:
+        print(f"Error: failed to fetch tags from Docker Hub ({url}): {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    all_tags.extend(payload.get("results", []))
+    url = payload.get("next")
 
 def last_updated(item):
     return item.get("last_updated") or ""
 
-tags = sorted(payload.get("results", []), key=last_updated, reverse=True)
-for tag in tags:
+for tag in sorted(all_tags, key=last_updated, reverse=True):
     name = tag.get("name", "")
+    # Skip `latest` because it is an alias and not a concrete release version.
     if name and name != "latest":
         print(name)
         break
 else:
     print("latest")
-'
+PY
 }
 
 require_tools
