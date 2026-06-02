@@ -39,8 +39,8 @@ def last_updated(item):
 while url:
     req = urllib.request.Request(url, headers={"Accept": "application/json"})
     try:
-      with urllib.request.urlopen(req, timeout=30) as response:
-          payload = json.loads(response.read().decode("utf-8"))
+        with urllib.request.urlopen(req, timeout=30) as response:
+            payload = json.loads(response.read().decode("utf-8"))
     except urllib.error.URLError as exc:
         print(f"Error: failed to fetch tags from Docker Hub ({url}): {exc}", file=sys.stderr)
         sys.exit(1)
