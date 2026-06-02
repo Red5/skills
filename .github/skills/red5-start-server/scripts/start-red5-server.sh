@@ -18,7 +18,7 @@ require_tools() {
   fi
 }
 
-resolve_latest_release_tag() {
+resolve_most_recent_release_tag() {
   python3 - "$IMAGE_REPO" <<'PY'
 import json
 import sys
@@ -33,7 +33,7 @@ url = f"{base_url}?{urllib.parse.urlencode(params)}"
 
 all_tags = []
 
-def last_updated(item):
+def extract_last_updated(item):
     return item.get("last_updated") or ""
 
 while url:
@@ -48,7 +48,8 @@ while url:
     all_tags.extend(payload.get("results", []))
     url = payload.get("next")
 
-for tag in sorted(all_tags, key=last_updated, reverse=True):
+# Select the most recently updated non-`latest` release tag from Docker Hub.
+for tag in sorted(all_tags, key=extract_last_updated, reverse=True):
     name = tag.get("name", "")
     # Skip `latest` because it is an alias and not a concrete release version.
     if name and name != "latest":
@@ -61,7 +62,7 @@ PY
 }
 
 require_tools
-LATEST_TAG="$(resolve_latest_release_tag)"
+LATEST_TAG="$(resolve_most_recent_release_tag)"
 IMAGE_REF="${IMAGE_REPO}:${LATEST_TAG}"
 
 echo "Resolved latest release: ${IMAGE_REF}"
