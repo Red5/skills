@@ -33,6 +33,9 @@ url = f"{base_url}?{urllib.parse.urlencode(params)}"
 
 all_tags = []
 
+def last_updated(item):
+    return item.get("last_updated") or ""
+
 while url:
     req = urllib.request.Request(url, headers={"Accept": "application/json"})
     try:
@@ -45,9 +48,6 @@ while url:
     all_tags.extend(payload.get("results", []))
     url = payload.get("next")
 
-def last_updated(item):
-    return item.get("last_updated") or ""
-
 for tag in sorted(all_tags, key=last_updated, reverse=True):
     name = tag.get("name", "")
     # Skip `latest` because it is an alias and not a concrete release version.
@@ -55,6 +55,7 @@ for tag in sorted(all_tags, key=last_updated, reverse=True):
         print(name)
         break
 else:
+    # Fallback when only `latest` exists, or no tags are returned.
     print("latest")
 PY
 }
