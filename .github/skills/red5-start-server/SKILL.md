@@ -10,6 +10,7 @@ Start a Red5 server container from the latest Docker Hub release.
 ## Prerequisites
 
 - Docker must be installed and running.
+- Python 3 must be available in PATH.
 - The current user must be able to run Docker commands.
 
 ## Workflow
