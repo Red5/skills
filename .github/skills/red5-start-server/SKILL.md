@@ -24,8 +24,10 @@ Start a Red5 server container from the latest Docker Hub release.
 Run:
 
 ```bash
-bash .github/skills/red5-start-server/scripts/start-red5-server.sh
+bash <skill-dir>/scripts/start-red5-server.sh
 ```
+
+`<skill-dir>` is the folder this `SKILL.md` was loaded from, wherever the skill is installed (for example `~/.claude/skills/red5-start-server`, `~/.agents/skills/red5-start-server` or `.github/skills/red5-start-server` in a project). The script does not depend on the current directory, so it can be run from anywhere. Use the full path if you are unsure.
 
 ## Optional environment overrides
 
@@ -38,5 +40,5 @@ Example:
 
 ```bash
 IMAGE_REPO=red5pro/server CONTAINER_NAME=my-red5 HOST_HTTP_PORT=15080 HOST_RTMP_PORT=11935 \
-  bash .github/skills/red5-start-server/scripts/start-red5-server.sh
+  bash <skill-dir>/scripts/start-red5-server.sh
 ```
