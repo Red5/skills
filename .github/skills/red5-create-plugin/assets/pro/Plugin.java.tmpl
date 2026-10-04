@@ -1,0 +1,138 @@
+package @@PACKAGE@@;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Properties;
+import java.util.concurrent.Future;
+
+import org.red5.server.api.listeners.ScopeListenerAdapter;
+import org.red5.server.api.scope.IScope;
+import org.red5.server.api.scope.ScopeType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.support.FileSystemXmlApplicationContext;
+
+import com.red5pro.license.LicenseManager;
+import com.red5pro.plugin.Red5ProPlugin;
+@@HOOK_IMPORTS@@
+/**
+ * Red5 Pro plugin. Loaded by Red5 Pro from the server's plugins directory when the jar manifest has a
+ * Red5Pro-Plugin-Main-Class entry naming this class. It runs only inside a Red5 Pro server.
+ */
+public class @@CLASS@@ extends Red5ProPlugin {
+
+    private static final Logger log = LoggerFactory.getLogger(@@CLASS@@.class);
+
+    /** The name the server registers and looks this plugin up by; it also names the version entry in the jar manifest. */
+    public static final String NAME = "@@CLASS@@";
+
+    /** Properties file read from the server's conf directory (not from inside the jar). */
+    private static final String PROPS_FILE = "@@PROPS_FILE@@";
+
+    private final Properties props = new Properties();
+
+    private ScopeListenerAdapter scopeListener;
+@@HOOK_FIELD@@
+    @Override
+    public void doStartProPlugin(FileSystemXmlApplicationContext activationContext) throws IOException {
+        // the manifest entry is written by the jar plugin in pom.xml, named NAME + "-Version"
+        log.info("Starting {} version {}", NAME, getManifestValue(NAME + "-Version"));
+        loadProperties();
+        if (!Boolean.parseBoolean(props.getProperty("enable", "true"))) {
+            log.info("{} is disabled by the enable property in {}", NAME, PROPS_FILE);
+            return;
+        }
+        scopeListener = new ScopeListenerAdapter() {
+
+            @Override
+            public void notifyScopeCreated(IScope scope) {
+                if (scope.getType() == ScopeType.APPLICATION) {
+                    log.debug("Application scope created: {}", scope.getName());
+                    configureApplication(scope);
+                }
+            }
+
+            @Override
+            public void notifyScopeRemoved(IScope scope) {
+                if (scope.getType() == ScopeType.APPLICATION) {
+                    log.debug("Application scope removed: {}", scope.getName());
+                    cleanupApplication(scope);
+                }
+            }
+
+        };
+        server.addListener(scopeListener);
+        // applications may already be running when plugins start, and the listener above only sees new ones
+        server.getGlobalScopes().forEachRemaining(global -> global.getBasicScopeNames(ScopeType.APPLICATION).forEach(appName -> {
+            IScope app = (IScope) global.getBasicScope(ScopeType.APPLICATION, appName);
+            if (app != null) {
+                configureApplication(app);
+            }
+        }));
+        log.info("{} started", NAME);
+    }
+
+    @Override
+    public void doStopProPlugin() throws Exception {
+        log.info("Stopping {}", NAME);
+        if (scopeListener != null) {
+            server.removeListener(scopeListener);
+            scopeListener = null;
+        }
+        server.getGlobalScopes().forEachRemaining(global -> global.getBasicScopeNames(ScopeType.APPLICATION).forEach(appName -> {
+            IScope app = (IScope) global.getBasicScope(ScopeType.APPLICATION, appName);
+            if (app != null) {
+                cleanupApplication(app);
+            }
+        }));
+        // the base class stops the plugin's executors
+        super.doStopProPlugin();
+        log.info("{} stopped", NAME);
+    }
+
+    /** Called for each application scope, both the ones that already exist at start and any created later. */
+    private void configureApplication(IScope appScope) {
+@@HOOK_REGISTER@@        // TODO attach your own handlers, services or listeners to the application scope here
+    }
+
+    /** Called when an application scope is removed or the plugin stops; undo what configureApplication did. */
+    private void cleanupApplication(IScope appScope) {
+@@HOOK_UNREGISTER@@        // TODO remove what you attached in configureApplication
+    }
+
+    @Override
+    public String getName() {
+        return NAME;
+    }
+
+    /** Reads a value from this plugin's properties file. Named differently from getProperty so the base class lookups are left alone. */
+    public String prop(String key, String defaultValue) {
+        return props.getProperty(key, defaultValue);
+    }
+
+    private void loadProperties() {
+        // conf is relative to the server's working directory, as in the Red5 Pro example plugin
+        Path file = Paths.get(System.getProperty("red5.config_root", "conf"), PROPS_FILE);
+        try (InputStream in = Files.newInputStream(file)) {
+            props.load(in);
+        } catch (IOException e) {
+            log.warn("Could not read {}; copy the properties file from the project into the server conf directory. Using defaults. {}", file, e.toString());
+        }
+    }
+
+    /** Runs a task on the plugin's executor. Returns null if the plugin is not registered (not started or disabled). */
+    public static Future<?> submit(Runnable task) {
+        Red5ProPlugin self = LicenseManager.getInstance().getPlugin(NAME);
+        return self != null ? self.submitTask(task) : null;
+    }
+
+    /** Schedules a repeating task on the plugin's executor. Returns null if the plugin is not registered. */
+    public static Future<?> schedule(Runnable task, long initialDelay, long delay) {
+        Red5ProPlugin self = LicenseManager.getInstance().getPlugin(NAME);
+        return self != null ? self.scheduleTask(task, initialDelay, delay) : null;
+    }
+
+}

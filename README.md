@@ -10,6 +10,7 @@ A skill is a folder containing a `SKILL.md` (instructions plus a short descripti
 | --- | --- | --- |
 | `red5-start-server` | Pulls the latest `red5pro/server` Docker release and starts a running Red5 container. | Docker, Python 3 |
 | `red5-log-triage` | Summarizes a `red5.log` (plain, `.gz` or `.zip`) into ranked findings with likely causes and next steps, so support can diagnose from the log alone. | Python 3 |
+| `red5-create-plugin` | Helps a developer create a Red5 (open source) or Red5 Pro plugin: explains how the two differ, generates a Maven project that compiles, then guides build, deploy and verification. | Java 21, Maven, Python 3 |
 
 Each skill lives in `.github/skills/<skill-name>/`.
 
@@ -109,6 +110,7 @@ Examples:
 
 - `red5-log-triage`: "Here is a red5.log from a customer, `~/Downloads/red5.log`. Viewers kept freezing around 09:53. What is going on?"
 - `red5-start-server`: "Start the latest Red5 Pro server in Docker."
+- `red5-create-plugin`: "I want to write a plugin that logs every stream that gets published. My Red5 Pro server is in `/usr/local/red5pro`."
 
 ## Skill notes
 
@@ -119,6 +121,12 @@ Requires Python 3 and nothing else. The agent runs a bundled script that collaps
 Logs often contain IP addresses, usernames and, in some versions, the license key. Redact before sharing a log or the agent's report widely.
 
 To teach it a new pattern, add an entry to `references/knowledge.json` in the skill folder. Its `_about` field explains the format.
+
+### red5-create-plugin
+
+Needs Java 21, Maven 3.6 or newer and Python 3. A Red5 plugin and a Red5 Pro plugin are different things: different base classes, jar manifest keys and dependencies, and a Pro plugin runs only on a Red5 Pro server. The skill asks which one you are building and explains the difference before it generates anything.
+
+For a Red5 Pro plugin, tell it where your Red5 Pro server is installed. It then builds against that server's own jars, so the API matches what will run; the Red5 Pro Maven repository otherwise needs credentials. The skill never deploys to or restarts a server on its own. The generated projects are compile-tested against Red5 2.0.29 and against Red5 Pro 16.2 and 16.3 installs; loading them in a running server is left to you.
 
 ### red5-start-server
 

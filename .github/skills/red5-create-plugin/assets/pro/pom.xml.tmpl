@@ -1,0 +1,50 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>@@GROUP_ID@@</groupId>
+    <artifactId>@@ARTIFACT_ID@@</artifactId>
+    <version>1.0.0</version>
+    <packaging>jar</packaging>
+    <name>@@ARTIFACT_ID@@</name>
+    <description>Red5 Pro plugin</description>
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.release>21</maven.compiler.release>
+        <maven.build.timestamp.format>MM.dd.yyyy HH:mm</maven.build.timestamp.format>
+        <timestamp>${maven.build.timestamp}</timestamp>
+@@PROPERTIES@@
+        <slf4j.version>2.0.17</slf4j.version>
+        <spring.version>6.2.15</spring.version>
+    </properties>
+@@REPOSITORIES@@
+    <!-- Everything the Red5 Pro server already ships is "provided": it is on the server's classpath at runtime and must not be bundled in the plugin jar. -->
+    <dependencies>
+@@DEPENDENCIES@@
+    </dependencies>
+    <build>
+        <defaultGoal>package</defaultGoal>
+        <plugins>
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <release>${maven.compiler.release}</release>
+                </configuration>
+            </plugin>
+            <plugin>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.2</version>
+                <configuration>
+                    <archive>
+                        <manifestEntries>
+                            <!-- Red5 Pro plugins use Red5Pro-Plugin-Main-Class. Do not also add Red5-Plugin-Main-Class. -->
+                            <Red5Pro-Plugin-Main-Class>@@PACKAGE@@.@@CLASS@@</Red5Pro-Plugin-Main-Class>
+                            <!-- read at startup by getManifestValue(NAME + "-Version") to log the version banner -->
+                            <@@CLASS@@-Version>${project.version} (on: ${timestamp})</@@CLASS@@-Version>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
