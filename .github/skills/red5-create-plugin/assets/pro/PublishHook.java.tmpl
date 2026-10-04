@@ -1,0 +1,47 @@
+package @@PACKAGE@@;
+
+import org.red5.server.api.scope.IScope;
+import org.red5.server.api.stream.IStreamPublishSecurity;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.red5pro.override.ProStream;
+import com.red5pro.server.stream.ProStreamService;
+
+/**
+ * Fires when a publisher is being set up and attaches a stream listener once the stream exists. It never rejects a publish; to enforce
+ * security, return false from isPublishAllowed.
+ */
+public class @@HOOK@@ implements IStreamPublishSecurity {
+
+    private static final Logger log = LoggerFactory.getLogger(@@HOOK@@.class);
+
+    private static final int ATTEMPTS = 10;
+
+    private static final long RETRY_MS = 500;
+
+    @Override
+    public boolean isPublishAllowed(IScope scope, String name, String mode) {
+        log.debug("Publish requested - scope: {} name: {} mode: {}", scope.getName(), name, mode);
+        // the stream does not exist yet at this point, so wait for it on the plugin's executor
+        @@CLASS@@.submit(() -> {
+            for (int attempt = 0; attempt < ATTEMPTS; attempt++) {
+                ProStream stream = ProStreamService.getProStream(scope, name);
+                if (stream != null) {
+                    new @@LISTENER@@(scope, name).start(stream);
+                    log.debug("Attached listener to {} in {}", name, scope.getName());
+                    return;
+                }
+                try {
+                    Thread.sleep(RETRY_MS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+            log.warn("Gave up waiting for stream {} in {}", name, scope.getName());
+        });
+        return true;
+    }
+
+}

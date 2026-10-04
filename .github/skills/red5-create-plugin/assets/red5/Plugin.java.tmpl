@@ -1,0 +1,86 @@
+package @@PACKAGE@@;
+
+import org.red5.server.api.listeners.ScopeListenerAdapter;
+import org.red5.server.api.scope.IScope;
+import org.red5.server.api.scope.ScopeType;
+import org.red5.server.plugin.Red5Plugin;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * Red5 (open source) plugin. Loaded by org.red5.server.plugin.PluginLauncher from the server's plugins directory
+ * when the jar manifest has a Red5-Plugin-Main-Class entry naming this class.
+ */
+public class @@CLASS@@ extends Red5Plugin {
+
+    private static final Logger log = LoggerFactory.getLogger(@@CLASS@@.class);
+
+    public static final String NAME = "@@CLASS@@";
+
+    private ScopeListenerAdapter scopeListener;
+
+    /** PluginLauncher creates the plugin with a public no-argument constructor, so keep this and do real work in doStart(). */
+    public @@CLASS@@() {
+        log.trace("{} created", NAME);
+    }
+
+    @Override
+    public void doStart() throws Exception {
+        log.info("Starting {}", NAME);
+        scopeListener = new ScopeListenerAdapter() {
+
+            @Override
+            public void notifyScopeCreated(IScope scope) {
+                if (scope.getType() == ScopeType.APPLICATION) {
+                    log.debug("Application scope created: {}", scope.getName());
+                    configureApplication(scope);
+                }
+            }
+
+            @Override
+            public void notifyScopeRemoved(IScope scope) {
+                if (scope.getType() == ScopeType.APPLICATION) {
+                    log.debug("Application scope removed: {}", scope.getName());
+                    cleanupApplication(scope);
+                }
+            }
+
+        };
+        server.addListener(scopeListener);
+        // plugins start after the server is up, so applications may already exist; the listener above only sees new ones
+        server.getGlobalScopes().forEachRemaining(global -> global.getBasicScopeNames(ScopeType.APPLICATION).forEach(appName -> {
+            IScope app = (IScope) global.getBasicScope(ScopeType.APPLICATION, appName);
+            if (app != null) {
+                configureApplication(app);
+            }
+        }));
+        log.info("{} started", NAME);
+    }
+
+    @Override
+    public void doStop() throws Exception {
+        log.info("Stopping {}", NAME);
+        if (scopeListener != null) {
+            server.removeListener(scopeListener);
+            scopeListener = null;
+        }
+        // undo anything you set up per application, and stop threads and close resources you created
+    }
+
+    /** Called for each application scope, both the ones that already exist at start and any created later. */
+    private void configureApplication(IScope appScope) {
+        // TODO attach your handlers, services or listeners to the application scope here
+    }
+
+    /** Called when an application scope is removed; undo what configureApplication did. */
+    private void cleanupApplication(IScope appScope) {
+        // TODO remove what you attached in configureApplication
+    }
+
+    /** Must be overridden: the base class returns null, and the name is what PluginRegistry looks plugins up by. */
+    @Override
+    public String getName() {
+        return NAME;
+    }
+
+}

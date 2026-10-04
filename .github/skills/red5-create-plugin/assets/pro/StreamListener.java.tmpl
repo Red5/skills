@@ -1,0 +1,117 @@
+package @@PACKAGE@@;
+
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+
+import org.red5.server.api.scope.IScope;
+import org.red5.server.api.stream.IBroadcastStream;
+import org.red5.server.api.stream.IStreamListener;
+import org.red5.server.api.stream.IStreamPacket;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.red5pro.override.IProStream;
+import com.red5pro.override.ProStream;
+import com.red5pro.override.api.ProStreamTerminationEventListener;
+import com.red5pro.server.stream.Red5ProIO;
+
+/**
+ * Receives the audio, video and data packets of one published stream. Packets are copied and handed to a worker thread through a
+ * bounded queue, so slow processing can never block the stream or grow memory without limit.
+ */
+public class @@LISTENER@@ implements IStreamListener {
+
+    private static final Logger log = LoggerFactory.getLogger(@@LISTENER@@.class);
+
+    /** Packets waiting for the worker; when full, new packets are dropped and counted. */
+    private static final int QUEUE_CAPACITY = 1024;
+
+    private final BlockingQueue<IStreamPacket> queue = new ArrayBlockingQueue<>(QUEUE_CAPACITY);
+
+    private final AtomicLong dropped = new AtomicLong();
+
+    private final IScope scope;
+
+    private final String streamName;
+
+    private volatile boolean running;
+
+    private Future<?> worker;
+
+    public @@LISTENER@@(IScope scope, String streamName) {
+        this.scope = scope;
+        this.streamName = streamName;
+    }
+
+    /** Attaches to the stream and starts the worker. The listener removes itself when the stream stops. */
+    public void start(ProStream stream) {
+        running = true;
+        stream.addStreamListener(this);
+        worker = @@CLASS@@.submit(this::drain);
+        stream.addTerminationEventListener(new ProStreamTerminationEventListener() {
+
+            @Override
+            public void streamStopped(IProStream stopped) {
+                log.debug("Stream stopped: {} in {}", streamName, scope.getName());
+                stopped.removeStreamListener(@@LISTENER@@.this);
+                stop();
+            }
+
+        });
+    }
+
+    public void stop() {
+        // TODO report or release your per-stream state here; this runs once when the stream stops
+        running = false;
+        if (worker != null) {
+            worker.cancel(true);
+            worker = null;
+        }
+        queue.clear();
+        if (dropped.get() > 0) {
+            log.warn("Dropped {} packets for {} because processing fell behind", dropped.get(), streamName);
+        }
+    }
+
+    @Override
+    public void packetReceived(IBroadcastStream stream, IStreamPacket packet) {
+        if (!running || packet == null) {
+            return;
+        }
+        // TODO to count or inspect every packet, do it here (cheap, no blocking); this runs on the stream's receive thread and sees
+        // every packet, whereas process() below only sees packets that fit in the queue
+        try {
+            // the server reuses the packet's buffer, so work on a copy
+            if (!queue.offer(Red5ProIO.copy(packet))) {
+                dropped.incrementAndGet();
+            }
+        } catch (Exception e) {
+            log.warn("Could not copy packet for {}", streamName, e);
+        }
+    }
+
+    private void drain() {
+        while (running) {
+            try {
+                IStreamPacket packet = queue.poll(1, TimeUnit.SECONDS);
+                if (packet != null) {
+                    process(packet);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            } catch (Exception e) {
+                log.warn("Error processing packet for {}", streamName, e);
+            }
+        }
+    }
+
+    /** Your processing goes here. Packet types: AudioData, VideoData and MetaData (see packet.getDataType()). */
+    protected void process(IStreamPacket packet) {
+        log.trace("{} packet type {} timestamp {}", streamName, packet.getDataType(), packet.getTimestamp());
+    }
+
+}
