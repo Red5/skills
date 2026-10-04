@@ -127,7 +127,7 @@ Requires Docker running and permission to run Docker commands as your user, plus
 ## Troubleshooting
 
 - **The agent does not mention the skill.** Confirm the folder is named exactly like the skill and contains `SKILL.md` directly inside it (`~/.claude/skills/red5-log-triage/SKILL.md`, not one level deeper). Then reload or restart as in the table above.
-- **The skill is found but its script is not.** Some skills refer to scripts by a path inside this repository, such as `.github/skills/red5-start-server/scripts/start-red5-server.sh`. If you installed the skill somewhere else, tell the agent the folder it was installed in, or install it as a project skill in `.github/skills/`.
+- **The skill is found but its script is not.** Tell the agent the folder the skill was installed in, and make sure you copied the whole folder (including `scripts/`), not just `SKILL.md`.
 - **A skill runs when you did not want it.** Tell the agent to skip it, or remove the folder to uninstall.
 - **Uninstall.** Delete the skill's folder from the location you copied it to.
 
