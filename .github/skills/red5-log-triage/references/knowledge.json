@@ -1,0 +1,456 @@
+{
+  "_about": "Edit this file to teach the triage script. logger_rules map a logger-name prefix to a category (first match wins). known_issues match a regex against '<logger> <message>' (first match wins); every repeat of a matched issue merges into one finding, even if names or ids in the message differ. severity is one of: investigate, watch, noise. Entries marked 'inferred' were written from reading logs, not from Red5 source, and should be confirmed by someone who knows the code. events are matched against every log line at any level and shown as one-line notable events (restarts, licensing); they do not need to be WARN or ERROR.",
+  "logger_rules": [
+    [
+      "org.jitsi.impl.neomedia.AVSyncCalculator",
+      "media_sync"
+    ],
+    [
+      "org.jitsi",
+      "webrtc"
+    ],
+    [
+      "com.red5pro.whip",
+      "webrtc"
+    ],
+    [
+      "com.red5pro.whep",
+      "webrtc"
+    ],
+    [
+      "com.red5pro.webrtc",
+      "webrtc"
+    ],
+    [
+      "com.red5pro.io.sctp",
+      "webrtc"
+    ],
+    [
+      "com.red5pro.io.rtp",
+      "webrtc"
+    ],
+    [
+      "com.red5pro.media.extmap",
+      "webrtc"
+    ],
+    [
+      "com.red5pro.ice",
+      "webrtc"
+    ],
+    [
+      "com.red5pro.server.webrtc",
+      "webrtc"
+    ],
+    [
+      "com.red5pro.media.DataMediaStreamImpl",
+      "webrtc"
+    ],
+    [
+      "org.red5.server.Client",
+      "connections"
+    ],
+    [
+      "com.red5pro.moq",
+      "moq"
+    ],
+    [
+      "org.red5.server.net.moq",
+      "moq"
+    ],
+    [
+      "com.red5pro.rtsp",
+      "streaming"
+    ],
+    [
+      "com.red5pro.restreamer",
+      "streaming"
+    ],
+    [
+      "com.red5pro.server.stream",
+      "streaming"
+    ],
+    [
+      "org.red5.server.net.rtmp",
+      "rtmp"
+    ],
+    [
+      "org.red5.server.stream",
+      "streaming"
+    ],
+    [
+      "com.red5pro.cluster",
+      "cluster"
+    ],
+    [
+      "com.red5pro.autoscale",
+      "cluster"
+    ],
+    [
+      "com.red5pro.media.storage",
+      "storage"
+    ],
+    [
+      "com.red5pro.services.api.authentication",
+      "security"
+    ],
+    [
+      "com.red5pro.media.processor",
+      "media_processing"
+    ],
+    [
+      "com.red5pro.activation",
+      "startup"
+    ],
+    [
+      "com.red5pro.plugin",
+      "startup"
+    ],
+    [
+      "org.springframework",
+      "startup"
+    ],
+    [
+      "org.red5.server.scope",
+      "startup"
+    ],
+    [
+      "org.red5.server.ContextLoader",
+      "startup"
+    ],
+    [
+      "org.red5.server.Launcher",
+      "startup"
+    ],
+    [
+      "org.apache.catalina",
+      "web_server"
+    ],
+    [
+      "org.apache.tomcat",
+      "web_server"
+    ],
+    [
+      "org.apache.coyote",
+      "web_server"
+    ]
+  ],
+  "known_issues": [
+    {
+      "id": "spring-context-init-failed",
+      "pattern": "XmlWebApplicationContext Exception encountered during context initialization",
+      "category": "startup",
+      "severity": "investigate",
+      "title": "Application failed to start (Spring context initialization)",
+      "meaning": "A webapp or plugin context could not be created, so that application is not running. The real reason is in the 'cause' line (the last 'Caused by' in the stack trace), usually a bean that could not be created or a missing or unsatisfied dependency.",
+      "next_steps": "Read the cause line. Check that the named bean's config files and properties exist and that required plugins or licenses loaded earlier in the log. If it repeats on every restart it is a configuration problem, not a transient one."
+    },
+    {
+      "id": "invalid-scope-rejected",
+      "pattern": "org\\.red5\\.server\\.scope\\.Scope (Invalid scope rejected|Scope not added to parent)",
+      "category": "startup",
+      "severity": "noise",
+      "title": "Scope rejected during startup (benign unless the application then fails)",
+      "meaning": "inferred: an application scope was created without a name and rejected. Harmless if the application starts normally in the lines that follow (check for the application being started or a stream accepted afterwards). It matters only when a spring-context-init-failed finding is at the same timestamp.",
+      "next_steps": "Ignore if the app started. Otherwise fix the spring-context-init-failed finding first."
+    },
+    {
+      "id": "whip-write-to-disconnected-client",
+      "pattern": "com\\.red5pro\\.whip\\.WHConnection (Data channel connection was not connected on write|Connection is not connected, message not sent|MsgWriter is absent|RTC session was null)",
+      "category": "webrtc",
+      "severity": "watch",
+      "title": "Server writing to a WebRTC (WHIP/WHEP) client that is no longer connected",
+      "meaning": "inferred: the server keeps trying to send data-channel messages after the client's peer connection closed or never finished connecting. Usually follows clients dropping, a network interruption or a page being closed. A small number is normal teardown noise. Thousands within minutes means many clients are dropping, or the server keeps writing after sessions end.",
+      "next_steps": "Compare the count with the number of sessions. Check the timestamps of the first and last entry against client-side disconnects. If viewers actually lost video, look at the DTLS and SCTP findings and at ICE/UDP reachability (firewall, TURN) for the affected clients."
+    },
+    {
+      "id": "sctp-send-failure",
+      "pattern": "com\\.red5pro\\.io\\.sctp\\.(Association Exception on send|SCTPStream Association cannot send)",
+      "category": "webrtc",
+      "severity": "watch",
+      "title": "SCTP data channel could not send",
+      "meaning": "inferred: the WebRTC data channel's SCTP association is closed or failed while something tried to send on it. Normally a consequence of the client disconnecting, and often appears with the WHConnection write warnings.",
+      "next_steps": "Treat as a symptom. Find the first occurrence and look just before it for the DTLS failure or client disconnect that caused it."
+    },
+    {
+      "id": "sctp-hole-in-tsn",
+      "pattern": "SCTPStream Hole in tsns",
+      "category": "webrtc",
+      "severity": "watch",
+      "title": "SCTP packet loss or reordering on a data channel",
+      "meaning": "inferred: an SCTP data chunk arrived with a gap in the transmission sequence numbers, which means lost or out-of-order packets on that connection.",
+      "next_steps": "Occasional entries are normal on lossy networks. Frequent entries for the same client suggest a poor network path."
+    },
+    {
+      "id": "dtls-packet-recv-failed",
+      "pattern": "DtlsPacketTransformer (Packet recv failed|Packet not decrypted)|DatagramTransportImpl",
+      "category": "webrtc",
+      "severity": "watch",
+      "title": "DTLS packet receive or decrypt failed",
+      "meaning": "inferred: the DTLS transport under a WebRTC connection stopped receiving, which typically means the peer left or the UDP path broke. Clients that never get past setup point at ICE/UDP reachability or certificate trouble instead.",
+      "next_steps": "Check whether these cluster after client disconnects (benign) or appear during connection setup (reachability, firewall, TURN, DTLS handshake). Check that UDP ports are open."
+    },
+    {
+      "id": "av-sync-baseline-error",
+      "pattern": "AVSyncCalculator A/V baseline error too large",
+      "category": "media_sync",
+      "severity": "investigate",
+      "title": "Audio/video sync correction skipped, publisher clocks likely out of step",
+      "meaning": "The server compared audio and video timestamps, found a baseline offset far too large to be real (often tens of seconds) and gave up correcting it. The log text itself points to the encoder's NTP clock being unsynchronized.",
+      "next_steps": "Check time synchronization (NTP/chrony) on the encoder or publishing device, and look at the stream's RTCP sender report timestamps. Expect lip-sync drift for that publisher until fixed."
+    },
+    {
+      "id": "extmap-playout-delay",
+      "pattern": "ExtMapSession offer has video PlayoutDelay",
+      "category": "webrtc",
+      "severity": "noise",
+      "title": "SDP offer contains the PlayoutDelay header extension",
+      "meaning": "inferred: informational note during WebRTC negotiation that the client offered the video playout-delay RTP header extension.",
+      "next_steps": "No action unless playback delay behaves unexpectedly for that client."
+    },
+    {
+      "id": "datachannel-router-close",
+      "pattern": "DataChannelRouter Message dispatch service was not found at close",
+      "category": "webrtc",
+      "severity": "noise",
+      "title": "Data channel closed after its dispatch service was already gone",
+      "meaning": "inferred: teardown ordering noise when a WebRTC session closes.",
+      "next_steps": "Ignore unless the count is far above the number of sessions."
+    },
+    {
+      "id": "moq-no-namespace-announced",
+      "pattern": "MoqRelayManager Cannot auto-create track: publisher .* has not announced any namespaces",
+      "category": "moq",
+      "severity": "watch",
+      "title": "MoQ relay got a request for a track before the publisher announced anything",
+      "meaning": "inferred: a subscriber (or the relay) asked for a track from a publisher session that had not yet sent an ANNOUNCE for any namespace, so the track could not be created.",
+      "next_steps": "If playback eventually worked it was a startup race. If it repeats, check that the publisher announces its namespace before subscribers connect and that namespaces match exactly."
+    },
+    {
+      "id": "moq-prostream-not-ready",
+      "pattern": "MoqPlugin ProStream not yet available for stream",
+      "category": "moq",
+      "severity": "noise",
+      "title": "MoQ plugin waiting for the stream to become available",
+      "meaning": "The plugin retried because the stream object did not exist yet. The message includes the number of attempts remaining.",
+      "next_steps": "Ignore if later lines show the stream attached. If attempts run to zero, the stream never started; look for the publisher failing."
+    },
+    {
+      "id": "moq-data-stream-closed-unprocessed",
+      "pattern": "MoqDataStreamHandler (Data stream closed with \\d+ unprocessed bytes|Abandoning data stream)",
+      "category": "moq",
+      "severity": "watch",
+      "title": "MoQ data stream closed with data still in flight",
+      "meaning": "The QUIC/WebTransport stream or session ended before everything received was processed, so the tail of that data was dropped (the log says data may be lost).",
+      "next_steps": "Expected when a client disconnects mid-stream. If it happens while clients stay connected, look at the session-closed lines just before it."
+    },
+    {
+      "id": "rtmp-connection-not-found",
+      "pattern": "RTMPMinaIoHandler Connection was not found for",
+      "category": "rtmp",
+      "severity": "noise",
+      "title": "RTMP event for a connection the server no longer tracks",
+      "meaning": "inferred: a socket event arrived for an RTMP session that was already cleaned up, which is a close-time race after the client has already gone.",
+      "next_steps": "Ignore unless clients report dropped RTMP streams at the same times."
+    },
+    {
+      "id": "rtsp-exception-on-close",
+      "pattern": "RTSPMinaIOHandler Exception during close|RTSPDecoder",
+      "category": "streaming",
+      "severity": "watch",
+      "title": "RTSP connection error while closing or decoding",
+      "meaning": "inferred: an RTSP client or camera connection errored or sent data the decoder could not parse. Repeated hundreds of times it usually means a camera or tool is reconnecting in a loop.",
+      "next_steps": "Find which client IP is involved in nearby INFO lines and whether it is a camera that keeps retrying. Check the cause line for the exact exception."
+    },
+    {
+      "id": "provision-resolver-chat",
+      "pattern": "ProvisionResolverService Resolve best provision for",
+      "category": "cluster",
+      "severity": "noise",
+      "title": "Routine provision lookup logged at WARN",
+      "meaning": "inferred: a lookup that picks a stream provision for a name. It is logged at WARN but looks like routine activity, with a different name each time.",
+      "next_steps": "Ignore."
+    },
+    {
+      "id": "cluster-resource-exists",
+      "pattern": "ClusterPlugin Resource: .* exists: true",
+      "category": "cluster",
+      "severity": "noise",
+      "title": "Cluster plugin reporting that a config resource exists, logged at WARN",
+      "meaning": "Informational message with 'exists: true', so nothing is missing.",
+      "next_steps": "Ignore."
+    },
+    {
+      "id": "ipcam-default-scope",
+      "pattern": "IPCamPlugin Default app scope is not available yet",
+      "category": "startup",
+      "severity": "noise",
+      "title": "IP camera plugin started before the default app scope was ready",
+      "meaning": "Startup ordering message. It retries when the scope is ready.",
+      "next_steps": "Ignore unless the plugin never reports it attached."
+    },
+    {
+      "id": "new-client-logged-at-warn",
+      "pattern": "org\\.red5\\.server\\.Client New Client id",
+      "category": "connections",
+      "severity": "noise",
+      "title": "New client session created (logged at WARN)",
+      "meaning": "inferred: one line per new client session. Not an error by itself, but the count over the time window is a good measure of connection churn. Hundreds within a few minutes means clients are reconnecting rapidly or a load test is running.",
+      "next_steps": "Compare the count and time window with expected user numbers. A burst that lines up with the WHConnection or SCTP warnings means clients reconnecting after failures."
+    },
+    {
+      "id": "ice-agent-closed",
+      "pattern": "com\\.red5pro\\.ice\\.Agent Agent is about to be closed",
+      "category": "webrtc",
+      "severity": "noise",
+      "title": "ICE agent closing for a WebRTC session",
+      "meaning": "inferred: a WebRTC session's ICE agent is being shut down; 'elapsed time' is how long it lived. Normal at the end of every session.",
+      "next_steps": "Only interesting in bulk: many sessions closing after just a few seconds suggests clients failing to stay connected (check DTLS and SCTP findings)."
+    },
+    {
+      "id": "feeder-exception-dtls-closed",
+      "pattern": "SubscriberAction Feeder exception",
+      "category": "webrtc",
+      "severity": "watch",
+      "title": "WebRTC subscriber feed stopped because the DTLS output closed",
+      "meaning": "The server was feeding media to a WebRTC subscriber and the DTLS transport had already closed (see the cause line), which is what happens when the subscriber leaves or the connection drops mid-stream.",
+      "next_steps": "Expected after a disconnect. If subscribers report freezes, check DTLS and ICE findings around the same time."
+    },
+    {
+      "id": "s3-operation-failed",
+      "pattern": "S3Uploader Error (deleting|uploading|writing)",
+      "category": "storage",
+      "severity": "investigate",
+      "title": "S3 storage operation failing",
+      "meaning": "A cloud storage upload or delete failed. The cause line says why; in one log it was \"not authorized to perform s3:DeleteObject\", meaning the server credentials lack that permission. Each attempt fails and repeats per file, so cleanup or uploads silently do not happen.",
+      "next_steps": "Read the cause line. For an authorization error, have whoever manages the AWS account grant that action to the IAM user or role the server uses (or turn off the feature that needs it). For other errors check bucket name, region and network access. The cause line contains account and bucket identifiers, so redact them before sharing."
+    },
+    {
+      "id": "client-auth-no-token",
+      "pattern": "AuthenticationProvider Failed to authenticate client",
+      "category": "security",
+      "severity": "watch",
+      "title": "Client rejected: no access token in the request",
+      "meaning": "A client tried to connect to a secured endpoint without a valid access token, so the server refused it. The cause line says what was missing.",
+      "next_steps": "If real users are affected, check that the client app is sending its token and that the token has not expired. A few from scanners or old clients are normal."
+    },
+    {
+      "id": "rtmp-method-not-found",
+      "pattern": "(ServiceInvoker Method not found|ReflectionUtils Named method): ?\\w+",
+      "category": "rtmp",
+      "severity": "noise",
+      "title": "A client called a server method that does not exist",
+      "meaning": "A client (often a flash-era player or encoder) calls a remote method such as pictureRefreshRequest that the server application does not define. The call is ignored and logged each time, so the count tracks how often that client calls it.",
+      "next_steps": "Harmless unless the application is supposed to implement that method. Mention it to the app owner if it is unexpected."
+    },
+    {
+      "id": "media-processor-exec-retry",
+      "pattern": "media\\.processor\\.\\w+ Execution attempt \\d+ failed",
+      "category": "media_processing",
+      "severity": "watch",
+      "title": "External media processing command failing and being retried",
+      "meaning": "inferred: a post-processing step that runs an external program (see the logger name, for example orientation fixing) exited with an error and is being retried. The exit value is in the cause line.",
+      "next_steps": "Check that the required tool is installed and runnable by the Red5 user, then run it by hand on one of the failing files to see its own error message."
+    },
+    {
+      "id": "ice-unknown-local-address",
+      "pattern": "IceUdpSocketWrapper Exception getting session for",
+      "category": "webrtc",
+      "severity": "watch",
+      "title": "ICE UDP socket could not find its session (Unknown local address)",
+      "meaning": "inferred: a UDP packet arrived on an ICE port before the server had registered a session for that local address, which is typical when many clients (re)connect at once, such as right after a restart. The cause line says 'Unknown local address'. Hundreds to thousands in a few seconds is a reconnect storm. If it continues long after clients have settled, something else is wrong.",
+      "next_steps": "Check whether a restart or deploy happened just before (see notable events). Otherwise ask for the UDP port range and firewall/security-group rules, and give engineering the first occurrence."
+    },
+    {
+      "id": "rtc-session-init-npe",
+      "pattern": "RTCStreamSession Exception on init",
+      "category": "webrtc",
+      "severity": "investigate",
+      "title": "WebRTC session failed to initialize",
+      "meaning": "A WebRTC publisher or subscriber session threw while being set up, so that client got no media. Read the cause line. In the one log this was seen in, it was a NullPointerException right after a restart, which points at a code defect or a race under reconnect load rather than a configuration problem.",
+      "next_steps": "Give engineering the stack trace and the first timestamp. Note whether it happened during a restart or reconnect burst (likely a race) or in steady state."
+    },
+    {
+      "id": "dtls-error-processing",
+      "pattern": "RTPConnectorInputStream Error processing DTLS packet",
+      "category": "webrtc",
+      "severity": "watch",
+      "title": "Malformed packet while processing DTLS/SRTP",
+      "meaning": "A received packet could not be parsed (the cause line shows an index-out-of-bounds in the SRTP header extension code). The packet is dropped. A handful is plausible from odd clients, a steady stream would be a parsing defect.",
+      "next_steps": "Give engineering the first occurrence and the user-agent of the client if it appears in nearby INFO lines."
+    },
+    {
+      "id": "audio-only-no-video-device",
+      "pattern": "(FlashToRTCTransformerStream No video output device for: NONE|WebRTCPlugin (Video|Audio) codec override NONE)",
+      "category": "webrtc",
+      "severity": "noise",
+      "title": "Audio-only or no-codec-override stream notices",
+      "meaning": "inferred: informational warnings logged for audio-only (for example Opus) streams, which have no video device, and for the unset codec override option.",
+      "next_steps": "Ignore unless video was expected on that stream."
+    },
+    {
+      "id": "sidecar-null",
+      "pattern": "ProStream Sidecar was null for",
+      "category": "startup",
+      "severity": "noise",
+      "title": "Optional plugin sidecar not attached yet",
+      "meaning": "inferred: a plugin (for example InspectorPlugin or MIRVFactory) was not present when the stream started, which is normal when that plugin is not enabled.",
+      "next_steps": "Ignore unless that plugin is supposed to be active."
+    },
+    {
+      "id": "rtmp-client-not-compatible",
+      "pattern": "InboundHandshake Client not compatible",
+      "category": "rtmp",
+      "severity": "noise",
+      "title": "RTMP handshake rejected a client",
+      "meaning": "inferred: a client's handshake did not match what the server accepts, so that connection was refused. Port scanners or non-RTMP clients hitting the RTMP port produce this.",
+      "next_steps": "Ignore unless a real publisher cannot connect, then check encoder and server versions."
+    },
+    {
+      "id": "websocket-send-after-close",
+      "pattern": "WebSocketConnection Send text exception",
+      "category": "connections",
+      "severity": "noise",
+      "title": "Message to a WebSocket that had already closed",
+      "meaning": "The cause line says the WebSocket session was closed when the server tried to send. Usually a client that left a moment earlier. A burst at one timestamp means several clients dropped together.",
+      "next_steps": "Ignore unless it correlates with reported disconnects."
+    },
+    {
+      "id": "aes-ctr-fallback",
+      "pattern": "srtp\\.crypto\\.Aes Chosen factory class .* not working for AES/CTR",
+      "category": "webrtc",
+      "severity": "noise",
+      "title": "Preferred AES provider unavailable, falling back to the JDK one",
+      "meaning": "The following log line says the server then uses the SunJCE implementation, so encryption still works, just through a different library.",
+      "next_steps": "Ignore."
+    },
+    {
+      "id": "cors-filter-not-initialized",
+      "pattern": "CorsFilter Not initialized properly",
+      "category": "web_server",
+      "severity": "noise",
+      "title": "CORS filter reported not initialized",
+      "meaning": "inferred: logged at startup for web applications that have no CORS configuration.",
+      "next_steps": "Check only if browser clients report cross-origin errors."
+    }
+  ],
+  "events": [
+    {
+      "id": "server-stop",
+      "pattern": "red5pro\\.sh Stop red5pro server",
+      "title": "Server stop requested (red5pro.sh)",
+      "note": "Every connected client is dropped when this happens. The log rarely says who did it (manual stop, deploy, autoscaler or watchdog), so ask. Freezes and reconnect storms right after it are usually this, not a media bug."
+    },
+    {
+      "id": "trial-mode-limit",
+      "pattern": "Red5ProConnManager \\(Trial-mode\\) connection limit reached",
+      "title": "Connection refused: server was in trial mode with its connection cap",
+      "note": "Seen during startup before the license validated. Clients connecting in that window are refused and have to retry. Many of them long after startup would mean the license is not being applied."
+    },
+    {
+      "id": "license-validated",
+      "pattern": "LicenseManager A valid license has been found",
+      "title": "License validated",
+      "note": "Compare this timestamp with the trial-mode refusals above to see how long the startup window was. Do not forward the license key line that appears nearby."
+    }
+  ]
+}
